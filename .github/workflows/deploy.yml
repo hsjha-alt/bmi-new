@@ -1,0 +1,54 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install and smoke test
+        run: |
+          pip install -r requirements.txt
+          python -c "from app import app"
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/bmi-app:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/bmi-app:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        host: [EC2_HOST_1, EC2_HOST_2]
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets[matrix.host] }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/bmi-app:latest
+            docker stop bmi || true
+            docker rm bmi || true
+            docker run -d --name bmi --restart unless-stopped -p 80:5000 \
+              ${{ secrets.DOCKERHUB_USERNAME }}/bmi-app:latest
+            docker image prune -f
