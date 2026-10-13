@@ -64,7 +64,6 @@ HTML = """
     <input type="number" id="h" name="height" step="0.01" min="1" max="2.5" value="1.75" oninput="sync('h')">
     <input type="range" id="hr" min="1" max="2.5" step="0.01" value="1.75" oninput="sync('hr')">
 
-    <button type="submit">Calculate</button>
   </form>
 
   <div class="result" id="result">
